@@ -10,7 +10,7 @@ export type Order = [
   total?: number,
   percentage?: number,
 ]
-export type OrderGroup = [orders: Order[], grouped: Order[]]
+export type OrderGroup = { orders: Order[]; grouped: Order[] }
 type Status =
   | 'initializing'
   | 'open'
@@ -19,28 +19,34 @@ type Status =
   | 'subscribed'
   | 'unsubscribed'
 
-export const subEvent = (event: Action, productId: Product) =>
-  JSON.stringify({
-    event,
-    feed: 'book_ui_1',
-    product_ids: [productId],
-  })
-
 export function useWebsocket(groupSize: string) {
   const ws = useRef<WebSocket>(null)
   const [event, setEvent] = useState<MessageEvent>()
   const [status, setStatus] = useState<Status>('initializing')
   const [productId, setProductId] = useState<Product>('PI_XBTUSD')
-  const [bids, setBids] = useState<Order[]>([])
-  const [asks, setAsks] = useState<Order[]>([])
+  const [bids, setBids] = useState<{ orders: Order[]; grouped: Order[] }>({
+    orders: [],
+    grouped: [],
+  })
+  const [asks, setAsks] = useState<{ orders: Order[]; grouped: Order[] }>({
+    orders: [],
+    grouped: [],
+  })
 
   /* Initialize Websocket */
   useEffect(() => {
     ws.current = new WebSocket('wss://www.cryptofacilities.com/ws/v1')
     ws.current.onopen = () => setStatus('open')
     ws.current.onclose = () => setStatus('closed')
-    ws.current.onerror = () => setStatus('error')
     ws.current.onmessage = (e: MessageEvent) => setEvent(e)
+    ws.current.onerror = (e) => {
+      try {
+        throw Error(e.toString())
+      } catch (err) {
+        setStatus('error')
+        console.log(err)
+      }
+    }
 
     return () => {
       ws.current.close()
@@ -57,8 +63,17 @@ export function useWebsocket(groupSize: string) {
         const id = productId === 'PI_XBTUSD' ? 'PI_ETHUSD' : 'PI_XBTUSD'
         ws.current.send(subEvent('subscribe', id))
         break
+      case 'error':
+        ws.current.send(subEvent('unsubscribe', productId))
+        break
     }
   }, [status, productId])
+
+  useEffect(() => {
+    const clear = { orders: [], grouped: [] }
+    setBids(clear)
+    setAsks(clear)
+  }, [groupSize])
 
   /* Handle Messages */
   useEffect(() => {
@@ -73,25 +88,33 @@ export function useWebsocket(groupSize: string) {
     }
 
     // Unsubscribe
-    if (message.event === 'unsubscribed') {
+    if (message.event === 'unsubscribed' && status !== 'error') {
       setStatus('unsubscribed')
-      setBids([])
-      setAsks([])
+      const clear = { orders: [], grouped: [] }
+      setBids(clear)
+      setAsks(clear)
       return
     }
 
     // Order Updates
     if (message.asks?.length) {
-      setAsks((prev) =>
-        updateOrders({ orders: prev, updates: message.asks, groupSize }),
+      setAsks(({ orders }) =>
+        updateOrders({ orders, updates: message.asks, groupSize }),
       )
     }
     if (message.bids?.length) {
-      setBids((prev) =>
-        updateOrders({ orders: prev, updates: message.bids, groupSize }),
+      setBids(({ orders }) =>
+        updateOrders({ orders, updates: message.bids, groupSize }),
       )
     }
   }, [event, groupSize])
 
-  return { ws, productId, bids, asks }
+  return { ws, productId, status, bids, asks }
 }
+
+export const subEvent = (event: Action, productId: Product) =>
+  JSON.stringify({
+    event,
+    feed: 'book_ui_1',
+    product_ids: [productId],
+  })

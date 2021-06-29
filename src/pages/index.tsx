@@ -12,9 +12,7 @@ import { GROUP_SIZE } from 'contants/groupSize'
 const IndexPage: NextPage = () => {
   const [groupSize, setGroupSize] = useState<string>('0.5')
   const [groups, setGroups] = useState(GROUP_SIZE.XBT)
-  const { ws, productId, asks, bids } = useWebsocket(groupSize)
-  // const asksGrouped = asks[1]
-  // const bidsGrouped = bids[1]
+  const { ws, productId, status, asks, bids } = useWebsocket(groupSize)
 
   // when productId changes, change the groups
   useEffect(() => {
@@ -28,10 +26,24 @@ const IndexPage: NextPage = () => {
   }, [productId])
 
   const handleToggleFeed = () => {
-    ws.current.send(subEvent('unsubscribe', productId))
+    try {
+      ws.current.send(subEvent('unsubscribe', productId))
+    } catch (e) {
+      console.log(e)
+    }
   }
 
-  const handleKillFeed = () => {}
+  const handleKillFeed = () => {
+    try {
+      if (status === 'closed' || status === 'error') {
+        ws.current.send(subEvent('subscribe', productId))
+      } else {
+        ws.current.dispatchEvent(new Event('error'))
+      }
+    } catch (e) {
+      console.log(e)
+    }
+  }
 
   const handleChangeGroup = (e: ChangeEvent<HTMLSelectElement>) => {
     setGroupSize(e.target.value)
@@ -66,7 +78,7 @@ const IndexPage: NextPage = () => {
             </tr>
           </thead>
           <tbody className="flex flex-col md:flex-col">
-            {asks.map((order, i) => {
+            {asks.grouped.map((order, i) => {
               const [price, size, total, percentage] = order
               return (
                 <tr
@@ -98,7 +110,7 @@ const IndexPage: NextPage = () => {
             </tr>
           </thead>
           <tbody className="flex flex-col-reverse md:flex-col">
-            {bids?.map((order, i) => {
+            {bids.grouped.map((order, i) => {
               const [price, size, total, percentage] = order
               return (
                 <tr

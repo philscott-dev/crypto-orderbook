@@ -10,7 +10,7 @@ export function updateOrders({
   orders,
   updates,
   groupSize,
-}: UpdateOrdersOptions): Order[] {
+}: UpdateOrdersOptions): OrderGroup {
   for (const [price, size] of updates) {
     const index = orders.findIndex((ask) => ask[0] === price)
 
@@ -41,9 +41,7 @@ export function updateOrders({
   // Sort
   orders = orders.sort((a, b) => a[0] - b[0])
 
-  // Group
-  //const groupedOrders = groupOrders(orders, groupSize)
-
+  // Accumulate Total
   orders = orders.reduce<Order[]>((acc, item, i) => {
     const [price, size] = item
 
@@ -53,12 +51,22 @@ export function updateOrders({
     return [...acc, [price, size, nextTotal]]
   }, [])
 
-  // generate percentage
-  const last = orders[orders.length - 1] // grandTotal
-  orders = orders.map((order) => {
-    const [price, size, total] = order
-    return [price, size, total, (order[2] / last[2]) * 100]
-  })
+  // get last items total as the grand total
+  const grandTotal = orders[orders.length - 1]
+    ? orders[orders.length - 1][2]
+    : 0
 
-  return orders
+  // use the grandtotal
+  const grouped = groupOrders(orders, groupSize).map((order) => {
+    const [price, size, total] = order
+    const o: Order = [price, size, total, (total / grandTotal) * 100]
+    return o
+  })
+  // generate percentage
+  // orders = orders.map((order) => {
+  //   const [price, size, total] = order
+  //   return [price, size, total, (order[2] / last[2]) * 100]
+  // })
+
+  return { orders, grouped }
 }
