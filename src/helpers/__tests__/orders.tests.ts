@@ -80,9 +80,9 @@ describe('Order Helpers', () => {
       ]
     })
 
-    it('should group order `price` by the `groupSize`', () => {
-      const results = groupOrders(orders, '0.5')
-      expect('')
+    it('should group `price` by the `groupSize`', () => {
+      const results = groupOrders(orders, '2.5')
+      expect(results).toContainEqual([3002.5, 350, NaN, NaN])
     })
   })
 })
