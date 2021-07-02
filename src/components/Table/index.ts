@@ -1,2 +1,5 @@
 export * from './TD'
 export * from './TH'
+export * from './TR'
+export * from './Table'
+export * from './TBody'
